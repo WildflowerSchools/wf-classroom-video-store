@@ -1,10 +1,9 @@
-# MODULE_NAME
+# Classroom Video Store
 
-SHORT_DESCRIPTION
+API to store indexed video from classrooms.
 
-## Installation
-
-`pip install PYPI_PACKAGE_NAME`
 
 ## Task list
-* TBD
+* Define API
+* Implement API
+* Deployment
