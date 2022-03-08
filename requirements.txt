@@ -1,0 +1,9 @@
+pymongo[srv]>=3.12
+jsonpatch>=1.32
+wf_fastapi_auth0>=1.0
+threadpoolctl==2.2.0
+six==1.15.0
+uvicorn
+pytz>=2021.3
+aiofiles>=0.8.0
+python-multipart
