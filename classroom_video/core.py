@@ -1,9 +1,8 @@
-from .config import logger
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from classroom_video import video_storage
+from .config import logger
 
 logger.info("starting app")
 app = FastAPI()

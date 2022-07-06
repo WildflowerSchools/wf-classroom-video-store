@@ -1,5 +1,5 @@
 set dotenv-load := true
-version := "v0.12"
+version := "v0.16"
 
 
 
@@ -8,7 +8,7 @@ docker-network:
 
 
 start-mongo:
-    @docker run -p 27017:27017 --network classroom-events \
+    @docker run -p 27017:27017 --network host \
         -v classroom-events-db:/data/db \
          optimuspaul/underground-cavern:mongodb5-v1
 

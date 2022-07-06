@@ -1,0 +1,65 @@
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: video-service
+  name: video-storage-api
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: video.api.wildflower-tech.org
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:us-east-2:204031725010:certificate/d43ef7db-0c02-49e6-9296-7398d3717a49
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 443
+    name: http
+    targetPort: 2300
+  selector:
+    app: video-storage-api
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: video-service
+  name: video-storage-api
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: video-storage-api
+  template:
+    metadata:
+      namespace: video-service
+      labels:
+        app: video-storage-api
+      annotations:
+        iam.amazonaws.com/role: video-storage-role
+    spec:
+      containers:
+      - image: "wildflowerschools/wf-classroom-video-store:v0.16"
+        name: video-storage-api
+        envFrom:
+          - secretRef:
+              name: auth-secrets
+        env:
+          - name: WF_DATA_PATH
+            value: /data
+          - name: WF_MONGODB_HOST
+            valueFrom:
+              secretKeyRef:
+                name: video-storage-mongodb-admin-wildflower-tech
+                key: connectionString.standard
+        ports:
+        - containerPort: 2300
+          name: http
+        volumeMounts:
+          - name: video-service-efs-pvc
+            mountPath: "/data"
+      restartPolicy: "Always"
+      volumes:
+        - name: video-service-efs-pvc
+          persistentVolumeClaim:
+            claimName: video-service-efs-pvc

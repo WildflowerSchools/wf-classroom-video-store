@@ -11,17 +11,14 @@ from pydantic import BaseModel
 import pymongo
 from wf_fastapi_auth0 import verify_token, get_subject_domain
 from wf_fastapi_auth0.wf_permissions import AuthRequest, check_requests
-# from pymongo import InsertOne
-
-from .config import logger
-
 
 from classroom_video.models import (
-        # OID,
         Video,
         ExistingVideo,
         videos as video_db,
 )
+from .config import logger
+
 
 WF_DATA_PATH = os.environ.get("WF_DATA_PATH", "./")
 
@@ -80,7 +77,6 @@ async def list_videos_for_camera(environment_id: str, camera_id: str, start_date
 
 @router.get("/video/{environment_id}/{camera_id}/{year}/{month}/{day}/{hour}/{file}.mp4", dependencies=[Depends(verify_token), Depends(can_read)])
 async def load_video_data(environment_id: str, camera_id: str, year: str, month: str, day: str, hour: str, file: str):
-    logger.info(f"{environment_id}/{camera_id}/{year}/{month}/{day}/{hour}/{file}.mp4")
     existing = video_db.find_one({"meta.path": f"{environment_id}/{camera_id}/{year}/{month}/{day}/{hour}/{file}.mp4"}, {"_id": 1, "meta": {"path": 1}})
     if existing is not None:
         realpath = f"{WF_DATA_PATH}/{environment_id}/{camera_id}/{year}/{month}/{day}/{hour}/{file}.mp4"
@@ -106,6 +102,11 @@ async def create_videos(videos:str = Form(...), files:List[UploadFile] = File(..
     results = []
     for vid in d_videos:
         batch.append(Video(**vid).mongo())
+    for vid in batch:
+        pth = vid.get("meta").get("path")
+        while pth.startswith("/"):
+            pth = pth[1:]
+        vid.get("meta")["path"] = pth
     try:
         result = video_db.insert_many(batch, ordered=False)
         iids = result.inserted_ids
@@ -131,7 +132,7 @@ async def create_videos(videos:str = Form(...), files:List[UploadFile] = File(..
                 results.append(ExistingVideo(id=iids[i], **vid))
     return results
 
-@router.get("/videos/check", response_model=List[VideoStatus], dependencies=[Depends(verify_token), Depends(can_write)])
+@router.post("/videos/check", response_model=List[VideoStatus], dependencies=[Depends(verify_token), Depends(can_write)])
 async def video_existence_check(videos:List[str]):
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
