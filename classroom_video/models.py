@@ -95,6 +95,7 @@ class VideoMeta(MongoModel):
     path: Optional[str] # path to file in filesystem, mirrored to S3
     duration_seconds: Optional[NonNegativeFloat]
     fps: Optional[float]
+    frame_offsets: Optional[List[float]] # milliseconds from timestamp for each frame in the video
 
 
 class Video(MongoModel):
