@@ -47,7 +47,7 @@ steps:
   commands:
     - export TAG_WITH_VERSION=$TAG:v$DRONE_BUILD_NUMBER
     - export TAG_WITH_VERSION_SLIM=$TAG_WITH_VERSION-slim
-    - sleep 8 # give docker enough time to start
+    - sleep 9 # give docker enough time to start
     # Pull recently built image from docker hub
     - docker pull $TAG_WITH_VERSION
     # Added "--include-cert-dirs" to resolve cacert errors
