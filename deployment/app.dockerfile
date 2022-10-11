@@ -9,7 +9,7 @@ COPY log-config.yaml /app/log-config.yaml
 COPY classroom_video/ /app/classroom_video/
 
 RUN pip install pipx && pipx install poetry
-RUN poetry config virtualenvs.create false && poetry install --without dev --no-interaction --no-ansi
+RUN /root/.local/bin/poetry config virtualenvs.create false && /root/.local/bin/poetry install --without dev --no-interaction --no-ansi
 
 
 CMD ["uvicorn", "classroom_video:app", "--host", "0.0.0.0", "--port", "2300"]
