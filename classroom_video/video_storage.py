@@ -74,20 +74,22 @@ async def list_videos_for_camera(environment_id: str, camera_id: str, start_date
         results.append(ExistingVideo.from_mongo(video))
     return results
 
-
-@router.get("/video/{environment_id}/{camera_id}/{year}/{month}/{day}/{hour}/{file}.mp4", dependencies=[Depends(verify_token), Depends(can_read)])
-async def load_video_data(environment_id: str, camera_id: str, year: str, month: str, day: str, hour: str, file: str):
-    existing = video_db.find_one({"meta.path": f"{environment_id}/{camera_id}/{year}/{month}/{day}/{hour}/{file}.mp4"}, {"_id": 1, "meta": {"path": 1}})
+@router.get("/video/{environment_id}/{camera_id}/{path:path}/data", dependencies=[Depends(verify_token), Depends(can_read)])
+async def load_video_data(environment_id: str, camera_id: str, path: str):
+    existing = video_db.find_one(
+        {"meta.path": f"{environment_id}/{camera_id}/{path}"},
+        {"_id": 1, "meta": {"path": 1}}
+    )
     if existing is not None:
-        realpath = f"{WF_DATA_PATH}/{environment_id}/{camera_id}/{year}/{month}/{day}/{hour}/{file}.mp4"
+        realpath = f"{WF_DATA_PATH}/{environment_id}/{camera_id}/{path}"
         logger.debug(realpath)
         return FileResponse(realpath)
     raise HTTPException(status_code=404, detail="video not found")
 
 
-@router.get("/video/{environment_id}/{camera_id}/{year}/{month}/{day}/{hour}/{file}", response_model=ExistingVideo, dependencies=[Depends(verify_token), Depends(can_read)])
-async def load_video_metadata(environment_id: str, camera_id: str, year: str, month: str, day: str, hour: str, file: str):
-    existing = video_db.find_one({"meta.path": f"{environment_id}/{camera_id}/{year}/{month}/{day}/{hour}/{file}.mp4"})
+@router.get("/video/{environment_id}/{camera_id}/{path:path}", response_model=ExistingVideo, dependencies=[Depends(verify_token), Depends(can_read)])
+async def load_video_metadata(environment_id: str, camera_id: str, path: str):
+    existing = video_db.find_one({"meta.path": f"{environment_id}/{camera_id}/{path}"})
     if existing is not None:
         return ExistingVideo.from_mongo(existing)
     raise HTTPException(status_code=404, detail="video not found")

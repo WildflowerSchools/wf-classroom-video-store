@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "wf-classroom-video-store"
+version = "0.1.0"
+description = "video storage api"
+authors = ["Paul J DeCoursey <paul@decoursey.net>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "wf_classroom_video_store"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pymongo = {version = ">=3.12", extras = ["srv"]}
+jsonpatch = ">=1.32"
+wf-fastapi-auth0 = ">=1.0"
+threadpoolctl = "2.2.0"
+six = "1.15.0"
+uvicorn = "^0.18.3"
+pytz = ">=2021.3"
+aiofiles = ">=0.8.0"
+python-multipart = "^0.0.5"
+
+
+[tool.poetry.group.dev.dependencies]
+behave = "^1.2.6"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

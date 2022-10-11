@@ -9,8 +9,9 @@ docker-network:
 
 start-mongo:
     @docker run -p 27017:27017 --network host \
+        --platform linux/amd64 \
         -v classroom-events-db:/data/db \
-         optimuspaul/underground-cavern:mongodb5-v1
+         mongo:4.4.6
 
 
 lint-app:
@@ -30,3 +31,6 @@ app-run-docker: app-build-docker
         -e "WF_MONGODB_PASS=unreal" \
         -e "WF_DATA_PATH=./data" \
         wildflowerschools/wf-classroom-video-store:{{version}}
+
+test:
+    behave
