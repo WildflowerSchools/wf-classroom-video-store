@@ -5,7 +5,7 @@ description = "video storage api"
 authors = ["Paul J DeCoursey <paul@decoursey.net>"]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "wf_classroom_video_store"}]
+packages = [{include = "classroom_video"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
