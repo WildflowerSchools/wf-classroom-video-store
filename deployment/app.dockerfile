@@ -7,6 +7,7 @@ COPY poetry.lock /app/
 COPY pyproject.toml /app/pyproject.toml
 COPY log-config.yaml /app/log-config.yaml
 COPY classroom_video/ /app/classroom_video/
+COPY README.md /app/README.md
 
 RUN pip install pipx && pipx install poetry
 RUN /root/.local/bin/poetry config virtualenvs.create false && /root/.local/bin/poetry install --without dev --no-interaction --no-ansi
