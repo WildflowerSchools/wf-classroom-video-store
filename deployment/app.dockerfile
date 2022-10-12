@@ -13,4 +13,4 @@ RUN pip install pipx && pipx install poetry
 RUN /root/.local/bin/poetry config virtualenvs.create false && /root/.local/bin/poetry install --without dev --no-interaction --no-ansi
 
 
-CMD ["uvicorn", "classroom_video:app", "--host", "0.0.0.0", "--port", "2300"]
+CMD ["/root/.local/bin/uvicorn", "classroom_video:app", "--host", "0.0.0.0", "--port", "2300"]
