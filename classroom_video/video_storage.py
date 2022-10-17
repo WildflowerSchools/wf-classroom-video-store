@@ -2,6 +2,7 @@ import concurrent.futures
 import datetime
 import json
 import os
+from pathlib import Path
 from typing import List, Union, Optional
 
 import aiofiles
@@ -93,6 +94,18 @@ async def load_video_metadata(environment_id: str, camera_id: str, path: str):
     if existing is not None:
         return ExistingVideo.from_mongo(existing)
     raise HTTPException(status_code=404, detail="video not found")
+
+
+@router.delete("/video/{environment_id}/{camera_id}/{path:path}", response_model=StatusResponse, dependencies=[Depends(verify_token), Depends(can_write)])
+async def expunge_video(environment_id: str, camera_id: str, path: str):
+    existing = video_db.find_one({"meta.path": f"{environment_id}/{camera_id}/{path}"})
+    if existing is not None:
+        # TODO - remove from db, and remove from filesystem
+        video_db.delete_one({"_id": existing["_id"])
+        file_path = Path(WF_DATA_PATH) / path
+        file_path.unlink()
+        return StatusResponse(status="200")
+    return StatusResponse(status="404")
 
 
 @router.post("/videos", response_model=List[Union[ExistingVideo, VideoExistsError]], dependencies=[Depends(verify_token), Depends(can_write)])
