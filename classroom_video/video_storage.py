@@ -101,7 +101,7 @@ async def expunge_video(environment_id: str, camera_id: str, path: str):
     existing = video_db.find_one({"meta.path": f"{environment_id}/{camera_id}/{path}"})
     if existing is not None:
         # TODO - remove from db, and remove from filesystem
-        video_db.delete_one({"_id": existing["_id"])
+        video_db.delete_one({"_id": existing["_id"]})
         file_path = Path(WF_DATA_PATH) / path
         file_path.unlink()
         return StatusResponse(status="200")
