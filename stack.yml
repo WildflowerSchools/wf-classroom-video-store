@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  mongo:
+    build:
+      context: ./deployment
+      dockerfile: mongo.dockerfile
+    networks:
+      - classroom-video-store
+    ports:
+      - 27017:27017
+    environment:
+      - MONGO_INITDB_DATABASE=video_storage
+    volumes:
+      - "classroom-video-store-db:/data/db"
+
+  api:
+    build:
+      context: .
+      dockerfile: deployment/app.dockerfile
+    depends_on:
+      - mongo
+    networks:
+      - classroom-video-store
+    ports:
+      - 8082:2300
+    environment:
+      - WF_MONGODB_HOST=mongo
+    env_file:
+      - .env
+
+networks:
+  classroom-video-store:
+
+volumes:
+  classroom-video-store-db:

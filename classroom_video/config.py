@@ -34,6 +34,3 @@ class LogConfig(BaseModel):
 
 dictConfig(LogConfig().dict())
 logger = logging.getLogger("classroom_video")
-
-
-logger.info("Logging setup")

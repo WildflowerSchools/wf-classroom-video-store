@@ -1,37 +1,12 @@
 import datetime
 from enum import Enum
-import os
 from uuid import UUID
 from typing import Optional, List
 
-from pydantic import BaseModel, BaseConfig, NonNegativeFloat
-import pymongo
+
 from bson import ObjectId
 from bson.errors import InvalidId
-from bson.binary import UuidRepresentation
-from bson.codec_options import CodecOptions
-import pytz
-
-
-codec_options = CodecOptions(tz_aware=True, uuid_representation=UuidRepresentation.STANDARD)
-
-client = pymongo.MongoClient(
-    os.environ.get("WF_MONGODB_HOST")
-)
-
-db = client["video_storage"]
-try:
-    db.create_collection("video_meta")
-except pymongo.errors.PyMongoError:
-    pass
-
-
-videos = db.video_meta.with_options(codec_options=CodecOptions(
-    tz_aware=True,
-    tzinfo=pytz.timezone('UTC')))
-
-videos.create_index([('meta.path', pymongo.ASCENDING)], unique=True)
-videos.create_index([('timestamp', pymongo.ASCENDING), ("meta.environment_id", pymongo.ASCENDING), ("meta.camera_id", pymongo.ASCENDING)])
+from pydantic import BaseModel, BaseConfig, NonNegativeFloat
 
 
 class OID(str):
@@ -52,7 +27,6 @@ class OID(str):
 
 
 class MongoModel(BaseModel):
-
     class Config(BaseConfig):
         allow_population_by_field_name = True
         use_enum_values = True
@@ -104,4 +78,16 @@ class Video(MongoModel):
 
 
 class ExistingVideo(Video):
+    id: Optional[OID]
+
+
+class RetentionRule(MongoModel):
+    environment_id: str
+    camera_ids: Optional[List[str]]
+    start: datetime.datetime
+    end: datetime.datetime
+    description: Optional[str]
+
+
+class ExistingRetentionRule(RetentionRule):
     id: Optional[OID]

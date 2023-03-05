@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from classroom_video import video_storage
+from . import routes_video_retention, routes_video_storage
 from .config import logger
+from .mongo_client import mongo_session
 
-logger.info("starting app")
 app = FastAPI()
 
 origins = [
@@ -20,7 +20,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(video_storage.router)
+
+@app.on_event("startup")
+async def startup():
+    logger.info("Starting API...")
+    app.state.mongo_db = mongo_session.connect()
+
+app.include_router(routes_video_storage.router)
+app.include_router(routes_video_retention.router)
 
 
 @app.get("/")
