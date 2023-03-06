@@ -3,10 +3,11 @@ from logging.config import dictConfig
 
 from pydantic import BaseModel
 
+
 class LogConfig(BaseModel):
     """Logging configuration to be set for the server"""
 
-    LOGGER_NAME: str = "mycoolapp"
+    LOGGER_NAME: str = "classroom_video"
     LOG_FORMAT: str = "%(levelprefix)s | %(asctime)s | %(message)s"
     LOG_LEVEL: str = "DEBUG"
 

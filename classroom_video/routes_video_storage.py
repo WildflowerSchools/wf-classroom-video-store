@@ -14,7 +14,7 @@ import pymongo
 from wf_fastapi_auth0 import verify_token
 
 from .config import logger
-from .mongo_models import (
+from .mongo.models import (
         Video,
         ExistingVideo
 )

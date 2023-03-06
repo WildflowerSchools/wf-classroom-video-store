@@ -6,7 +6,7 @@ from pymongo import errors
 import pytz
 
 
-from .config import logger
+from classroom_video.config import logger
 
 
 MONGO_DATABASE = "video_storage"

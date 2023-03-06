@@ -1,7 +1,7 @@
 import datetime
 from enum import Enum
 from uuid import UUID
-from typing import Optional, List
+from typing import List, Optional
 
 
 from bson import ObjectId

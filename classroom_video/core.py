@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import routes_video_retention, routes_video_storage
 from .config import logger
-from .mongo_client import mongo_session
+from .mongo.client import mongo_session
 
 app = FastAPI()
 

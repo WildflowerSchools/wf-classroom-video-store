@@ -4,8 +4,7 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, Request
 from wf_fastapi_auth0 import verify_token
 
-from .config import logger
-from .mongo_models import ExistingRetentionRule, RetentionRule
+from .mongo.models import ExistingRetentionRule, RetentionRule
 from .permissions import can_read, can_write
 from .routes import StatusResponse
 
