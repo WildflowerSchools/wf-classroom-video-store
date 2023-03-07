@@ -42,33 +42,37 @@ class MongoClient:
         if self.host is None:
             self.host = os.getenv("WF_MONGODB_HOST", "localhost")
 
-        self.port = port
-        if self.port is None:
-            self.port = int(os.environ.get("WF_MONGODB_PORT", "27017"))
-
-        self.direct_connection = direct_connection
-        if self.direct_connection is None:
-            direct_connection = os.environ.get("WF_MONGODB_DIRECT_CONNECTION", "False")
-            self.direct_connection = direct_connection.lower() in ["true", "1", "t", "y"]
-
-        self.username = username
-        if self.username is None:
-            self.username = os.environ.get("WF_MONGODB_USERNAME")
-
-        self.password = password
-        if self.password is None:
-            self.password = os.environ.get("WF_MONGODB_PASSWORD")
-
-        # Forced to use this args dict to workaround annoying Mongo logic when not auth'ing with a USERNAME
+        self.is_host_uri = "/" in self.host
         self.additional_mongo_args = {}
-        if self.username is not None:
-            self.additional_mongo_args["authMechanism"] = "SCRAM-SHA-256"
+
+        if not self.is_host_uri:
+            self.additional_mongo_args["port"] = port
+            if self.additional_mongo_args["port"] is None:
+                self.additional_mongo_args["port"] = int(os.environ.get("WF_MONGODB_PORT", "27017"))
+
+            self.additional_mongo_args["directConnection"] = direct_connection
+            if self.additional_mongo_args["directConnection"] is None:
+                self.additional_mongo_args["directConnection"] = os.environ.get(
+                    "WF_MONGODB_DIRECT_CONNECTION", "False"
+                ).lower() in ["true", "1", "t", "y"]
+
+            self.additional_mongo_args["username"] = username
+            if self.additional_mongo_args["username"] is None:
+                self.additional_mongo_args["username"] = os.environ.get("WF_MONGODB_USERNAME")
+
+            self.additional_mongo_args["password"] = password
+            if self.additional_mongo_args["password"] is None:
+                self.additional_mongo_args["password"] = os.environ.get("WF_MONGODB_PASSWORD")
+
+            # Forced to use this args dict to workaround annoying Mongo logic when not auth'ing with a USERNAME
+            if self.additional_mongo_args["username"] is not None:
+                self.additional_mongo_args["authMechanism"] = "SCRAM-SHA-256"
 
         self.client = None
         self.default_codec_options = CodecOptions(tz_aware=True, tzinfo=pytz.timezone("UTC"))
 
     def _connection_string(self):
-        return f"{self.username + '@' if self.username else ''}{self.host}:{self.port}"
+        return f"Host: '{self.host}' - Add'l Conn Args:'{self.additional_mongo_args}'"
 
     def connect(self):
         if self.client is not None:
@@ -76,21 +80,17 @@ class MongoClient:
 
         self.client = pymongo.MongoClient(
             host=self.host,
-            port=self.port,
-            username=self.username,
-            password=self.password,
             serverSelectionTimeoutMS=2500,
-            directConnection=self.direct_connection,
-            **self.additional_mongo_args,
+            **self.additional_mongo_args
         )
 
         try:
             self.client.admin.command("ping")
         except pymongo.errors.ConnectionFailure as e:
-            logger.error(f"MongoDB server not available: '{self._connection_string()}'")
+            logger.error(f"MongoDB server not available: {self._connection_string()}")
             raise e
 
-        logger.info(f"Connected to MongoDB: '{self._connection_string()}'")
+        logger.info(f"Connected to MongoDB: {self._connection_string()}")
         self._migrate()
         return self
 
