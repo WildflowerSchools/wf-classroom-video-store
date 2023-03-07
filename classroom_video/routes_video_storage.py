@@ -1,48 +1,36 @@
 import concurrent.futures
 import datetime
+import functools
 import json
 import os
 from pathlib import Path
 from typing import List, Union, Optional
 
 import aiofiles
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import pymongo
-from wf_fastapi_auth0 import verify_token, get_subject_domain
-from wf_fastapi_auth0.wf_permissions import AuthRequest, check_requests
-
-from classroom_video.models import (
-    Video,
-    ExistingVideo,
-    videos as video_db,
-)
-from .config import logger
+from wf_fastapi_auth0 import verify_token
 
 
-WF_DATA_PATH = os.environ.get("WF_DATA_PATH", "./")
+from .config import Config
+from .log import logger
+from .mongo.models import Video, ExistingVideo
+from .permissions import can_read, can_write
+from .routes import StatusResponse
 
 
-async def can_read(perm_info: tuple = Depends(get_subject_domain)):
-    resp = await check_requests([AuthRequest(sub=perm_info[0], dom=perm_info[1], obj="classroom:videos", act="read")])
-    return resp[0]["allow"]
+def video_check(video_meta_collection, path):
+    existing = video_meta_collection.find_one({"meta.path": path}, {"_id": 1})
 
-
-async def can_write(perm_info: tuple = Depends(get_subject_domain)):
-    resp = await check_requests([AuthRequest(sub=perm_info[0], dom=perm_info[1], obj="classroom:videos", act="write")])
-    return resp[0]["allow"]
-
-
-def video_check(path):
-    existing = video_db.find_one({"meta.path": path}, {"_id": 1})
     if existing is not None:
         return VideoStatus(id=str(existing["_id"]), path=path, exists=True).json()
     return VideoStatus(path=path, exists=False).json()
 
 
-class StatusResponse(BaseModel):
-    status: str = "OK"
+class ServiceStatusResponse(BaseModel):
+    estimated_document_count: int
 
 
 class VideoStatus(BaseModel):
@@ -57,41 +45,36 @@ class VideoExistsError(BaseModel):
     disposition: str = "video-exists"
 
 
-router = APIRouter()
+router = APIRouter(tags=["videos"], dependencies=[Depends(verify_token)])
 
 
 ########################################################################
 # Routes
 ########################################################################
-@router.get(
-    "/videos/{environment_id}",
-    response_model=List[ExistingVideo],
-    dependencies=[Depends(verify_token), Depends(can_read)],
-)
+@router.get("/videos/{environment_id}", response_model=List[ExistingVideo], dependencies=[Depends(can_read)])
 async def list_videos(
+    request: Request,
     environment_id: str,
     start_date: datetime.datetime,
     end_date: datetime.datetime,
     skip: int = 0,
     limit: int = 100,
 ):
+    video_meta_collection = request.app.state.mongo_client.video_meta_collection()
+
     results = []
-    for video in video_db.find(
-        {
-            "meta.environment_id": environment_id,
-            "timestamp": {"$gte": start_date, "$lt": end_date},
-        }
+    for video in video_meta_collection.find(
+        {"meta.environment_id": environment_id, "timestamp": {"$gte": start_date, "$lt": end_date}}
     )[skip : (skip + limit)]:
         results.append(ExistingVideo.from_mongo(video))
     return results
 
 
 @router.get(
-    "/videos/{environment_id}/device/{camera_id}",
-    response_model=List[ExistingVideo],
-    dependencies=[Depends(verify_token), Depends(can_read)],
+    "/videos/{environment_id}/device/{camera_id}", response_model=List[ExistingVideo], dependencies=[Depends(can_read)]
 )
 async def list_videos_for_camera(
+    request: Request,
     environment_id: str,
     camera_id: str,
     start_date: datetime.datetime,
@@ -99,8 +82,10 @@ async def list_videos_for_camera(
     skip: int = 0,
     limit: int = 100,
 ):
+    video_meta_collection = request.app.state.mongo_client.video_meta_collection()
+
     results = []
-    for video in video_db.find(
+    for video in video_meta_collection.find(
         {
             "meta.environment_id": environment_id,
             "meta.camera_id": camera_id,
@@ -111,56 +96,53 @@ async def list_videos_for_camera(
     return results
 
 
-@router.get(
-    "/video/{environment_id}/{camera_id}/{path:path}/data",
-    dependencies=[Depends(verify_token), Depends(can_read)],
-)
-async def load_video_data(environment_id: str, camera_id: str, path: str):
-    existing = video_db.find_one(
+@router.get("/video/{environment_id}/{camera_id}/{path:path}/data", dependencies=[Depends(can_read)])
+async def load_video_data(request: Request, environment_id: str, camera_id: str, path: str):
+    video_meta_collection = request.app.state.mongo_client.video_meta_collection()
+
+    existing = video_meta_collection.find_one(
         {"meta.path": f"{environment_id}/{camera_id}/{path}"},
         {"_id": 1, "meta": {"path": 1}},
     )
     if existing is not None:
-        realpath = f"{WF_DATA_PATH}/{environment_id}/{camera_id}/{path}"
+        realpath = f"{Config.WF_DATA_PATH}/{environment_id}/{camera_id}/{path}"
         logger.debug(realpath)
         return FileResponse(realpath)
     raise HTTPException(status_code=404, detail="video not found")
 
 
 @router.get(
-    "/video/{environment_id}/{camera_id}/{path:path}",
-    response_model=ExistingVideo,
-    dependencies=[Depends(verify_token), Depends(can_read)],
+    "/video/{environment_id}/{camera_id}/{path:path}", response_model=ExistingVideo, dependencies=[Depends(can_read)]
 )
-async def load_video_metadata(environment_id: str, camera_id: str, path: str):
-    existing = video_db.find_one({"meta.path": f"{environment_id}/{camera_id}/{path}"})
+async def load_video_metadata(request: Request, environment_id: str, camera_id: str, path: str):
+    video_meta_collection = request.app.state.mongo_client.video_meta_collection()
+
+    existing = video_meta_collection.find_one({"meta.path": f"{environment_id}/{camera_id}/{path}"})
     if existing is not None:
         return ExistingVideo.from_mongo(existing)
     raise HTTPException(status_code=404, detail="video not found")
 
 
 @router.delete(
-    "/video/{environment_id}/{camera_id}/{path:path}",
-    response_model=StatusResponse,
-    dependencies=[Depends(verify_token), Depends(can_write)],
+    "/video/{environment_id}/{camera_id}/{path:path}", response_model=StatusResponse, dependencies=[Depends(can_write)]
 )
-async def expunge_video(environment_id: str, camera_id: str, path: str):
-    existing = video_db.find_one({"meta.path": f"{environment_id}/{camera_id}/{path}"})
+async def expunge_video(request: Request, environment_id: str, camera_id: str, path: str):
+    video_meta_collection = request.app.state.mongo_client.video_meta_collection()
+
+    existing = video_meta_collection.find_one({"meta.path": f"{environment_id}/{camera_id}/{path}"})
     if existing is not None:
         # TODO - remove from db, and remove from filesystem
-        video_db.delete_one({"_id": existing["_id"]})
-        file_path = Path(WF_DATA_PATH) / path
+        video_meta_collection.delete_one({"_id": existing["_id"]})
+        file_path = Path(Config.WF_DATA_PATH) / path
         file_path.unlink()
         return StatusResponse(status="200")
     return StatusResponse(status="404")
 
 
-@router.post(
-    "/videos",
-    response_model=List[Union[ExistingVideo, VideoExistsError]],
-    dependencies=[Depends(verify_token), Depends(can_write)],
-)
-async def create_videos(videos: str = Form(...), files: List[UploadFile] = File(...)):
+@router.post("/videos", response_model=List[Union[ExistingVideo, VideoExistsError]], dependencies=[Depends(can_write)])
+async def create_videos(request: Request, videos: str = Form(...), files: List[UploadFile] = File(...)):
+    video_meta_collection = request.app.state.mongo_client.video_meta_collection()
+
     d_videos = json.loads(videos)
     if len(d_videos) != len(files):
         raise HTTPException(status_code=400, detail="number of videos does not match number of files")
@@ -174,13 +156,13 @@ async def create_videos(videos: str = Form(...), files: List[UploadFile] = File(
             pth = pth[1:]
         vid.get("meta")["path"] = pth
     try:
-        result = video_db.insert_many(batch, ordered=False)
+        result = video_meta_collection.insert_many(batch, ordered=False)
         iids = result.inserted_ids
     except pymongo.errors.BulkWriteError as err:
         # handle duplicate paths, cannot overwrite a video
         iids = [item["_id"] for item in batch]
         for write_err in err.details["writeErrors"]:
-            existing = video_db.find({"meta.path": write_err["keyValue"]["meta.path"]}, {"_id": 1})
+            existing = video_meta_collection.find({"meta.path": write_err["keyValue"]["meta.path"]}, {"_id": 1})
             iids[write_err["index"]] = VideoExistsError(
                 path=write_err["keyValue"]["meta.path"], id=str(existing[0]["_id"])
             )
@@ -189,7 +171,7 @@ async def create_videos(videos: str = Form(...), files: List[UploadFile] = File(
             results.append(iids[i])
         else:
             vid = batch[i]
-            file_path = os.path.join(WF_DATA_PATH, vid.get("meta").get("path"))
+            file_path = os.path.join(Config.WF_DATA_PATH, vid.get("meta").get("path"))
             if os.path.exists(file_path):
                 results.append(ExistingVideo(id=iids[i], **vid))
             else:
@@ -201,30 +183,23 @@ async def create_videos(videos: str = Form(...), files: List[UploadFile] = File(
     return results
 
 
-@router.post(
-    "/videos/check",
-    response_model=List[VideoStatus],
-    dependencies=[Depends(verify_token), Depends(can_write)],
-)
-async def video_existence_check(videos: List[str]):
+@router.post("/videos/check", response_model=List[VideoStatus], dependencies=[Depends(can_write)])
+async def video_existence_check(request: Request, videos: List[str]):
+    video_meta_collection = request.app.state.mongo_client.video_meta_collection()
+    video_check_partial = functools.partial(video_check, video_meta_collection=video_meta_collection)
+
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-        futures = executor.map(video_check, videos)
+        futures = executor.map(lambda video_path: video_check_partial(path=video_path), videos)
         for future in futures:
             results.append(VideoStatus.parse_raw(future))
     return results
 
 
-class ServiceStatusResponse(BaseModel):
-    estimated_document_count: int
+@router.post("/status", response_model=ServiceStatusResponse, dependencies=[Depends(can_write)])
+async def service_status(request: Request):
+    video_meta_collection = request.app.state.mongo_client.video_meta_collection()
 
-
-@router.post(
-    "/status",
-    response_model=ServiceStatusResponse,
-    dependencies=[Depends(verify_token), Depends(can_write)],
-)
-async def service_status():
     return ServiceStatusResponse(
-        estimated_document_count=video_db.estimated_document_count(),
+        estimated_document_count=video_meta_collection.estimated_document_count(),
     )

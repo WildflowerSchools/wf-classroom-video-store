@@ -1,39 +1,15 @@
 import datetime
 from enum import Enum
-import os
+from pathlib import Path
+from typing import List, Optional
 from uuid import UUID
-from typing import Optional, List
 
-from pydantic import BaseModel, BaseConfig, NonNegativeFloat
-import pymongo
+
 from bson import ObjectId
 from bson.errors import InvalidId
-from bson.binary import UuidRepresentation
-from bson.codec_options import CodecOptions
-import pytz
+from pydantic import BaseModel, BaseConfig, NonNegativeFloat
 
-
-codec_options = CodecOptions(tz_aware=True, uuid_representation=UuidRepresentation.STANDARD)
-
-client = pymongo.MongoClient(os.environ.get("WF_MONGODB_HOST"))
-
-db = client["video_storage"]
-try:
-    db.create_collection("video_meta")
-except pymongo.errors.PyMongoError:
-    pass
-
-
-videos = db.video_meta.with_options(codec_options=CodecOptions(tz_aware=True, tzinfo=pytz.timezone("UTC")))
-
-videos.create_index([("meta.path", pymongo.ASCENDING)], unique=True)
-videos.create_index(
-    [
-        ("timestamp", pymongo.ASCENDING),
-        ("meta.environment_id", pymongo.ASCENDING),
-        ("meta.camera_id", pymongo.ASCENDING),
-    ]
-)
+from classroom_video.config import Config
 
 
 class OID(str):
@@ -98,11 +74,32 @@ class VideoMeta(MongoModel):
     fps: Optional[float]
     frame_offsets: Optional[List[float]]  # milliseconds from timestamp for each frame in the video
 
+    def full_path(self):
+        return Path(Config.WF_DATA_PATH).joinpath(self.path)
+
 
 class Video(MongoModel):
     timestamp: datetime.datetime
     meta: VideoMeta
 
+    def full_path(self):
+        if not self.meta:
+            return None
+
+        return self.meta.full_path()
+
 
 class ExistingVideo(Video):
+    id: Optional[OID]
+
+
+class RetentionRule(MongoModel):
+    environment_id: str
+    camera_ids: Optional[List[str]]
+    start: datetime.datetime
+    end: datetime.datetime
+    description: Optional[str]
+
+
+class ExistingRetentionRule(RetentionRule):
     id: Optional[OID]
