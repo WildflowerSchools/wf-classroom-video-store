@@ -16,7 +16,7 @@ router = APIRouter(
 
 @router.post("/", response_model=ExistingRetentionRule, dependencies=[Depends(can_write)])
 async def create_rule(request: Request, rule: RetentionRule):
-    video_retention_collection = request.app.state.mongo_db.video_retention_collection()
+    video_retention_collection = request.app.state.mongo_client.video_retention_collection()
 
     result = video_retention_collection.insert_one(rule.mongo())
     new_retention_record = video_retention_collection.find_one(result.inserted_id)
@@ -26,7 +26,7 @@ async def create_rule(request: Request, rule: RetentionRule):
 
 @router.get("/", response_model=List[ExistingRetentionRule], dependencies=[Depends(can_read)])
 async def list_rules(request: Request):
-    video_retention_collection = request.app.state.mongo_db.video_retention_collection()
+    video_retention_collection = request.app.state.mongo_client.video_retention_collection()
 
     results = []
     for retention_record in video_retention_collection.find({}):
@@ -36,7 +36,7 @@ async def list_rules(request: Request):
 
 @router.delete("/{rule_id}", response_model=StatusResponse, dependencies=[Depends(can_write)])
 async def delete_rule(request: Request, rule_id: str):
-    video_retention_collection = request.app.state.mongo_db.video_retention_collection()
+    video_retention_collection = request.app.state.mongo_client.video_retention_collection()
 
     existing = video_retention_collection.find_one({"_id": ObjectId(rule_id)})
     if existing is not None:

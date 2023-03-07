@@ -1,12 +1,15 @@
 import datetime
 from enum import Enum
-from uuid import UUID
+from pathlib import Path
 from typing import List, Optional
+from uuid import UUID
 
 
 from bson import ObjectId
 from bson.errors import InvalidId
 from pydantic import BaseModel, BaseConfig, NonNegativeFloat
+
+from classroom_video.config import Config
 
 
 class OID(str):
@@ -66,15 +69,24 @@ class VideoMeta(MongoModel):
     environment_id: str
     camera_id: str
     assignment_id: Optional[str]
-    path: Optional[str] # path to file in filesystem, mirrored to S3
+    path: Optional[str]  # path to file in filesystem, mirrored to S3
     duration_seconds: Optional[NonNegativeFloat]
     fps: Optional[float]
-    frame_offsets: Optional[List[float]] # milliseconds from timestamp for each frame in the video
+    frame_offsets: Optional[List[float]]  # milliseconds from timestamp for each frame in the video
+
+    def full_path(self):
+        return Path(Config.WF_DATA_PATH).joinpath(self.path)
 
 
 class Video(MongoModel):
     timestamp: datetime.datetime
     meta: VideoMeta
+
+    def full_path(self):
+        if not self.meta:
+            return None
+
+        return self.meta.full_path()
 
 
 class ExistingVideo(Video):
