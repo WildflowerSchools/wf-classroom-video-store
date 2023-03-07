@@ -37,7 +37,7 @@ class MongoClient:
 
         self.host = host
         if self.host is None:
-            self.host = os.getenv("WF_MONGODB_HOST")
+            self.host = os.getenv("WF_MONGODB_HOST", "localhost")
 
         self.port = port
         if self.port is None:
@@ -56,6 +56,11 @@ class MongoClient:
         if self.password is None:
             self.password = os.environ.get("WF_MONGODB_PASSWORD")
 
+        # Forced to use this args dict to workaround annoying Mongo logic when not auth'ing with a USERNAME
+        self.additional_mongo_args = {}
+        if self.username is not None:
+            self.additional_mongo_args["authMechanism"] = "SCRAM-SHA-256"
+
         self.client = None
         self.default_codec_options = CodecOptions(tz_aware=True, tzinfo=pytz.timezone("UTC"))
 
@@ -70,7 +75,7 @@ class MongoClient:
             password=self.password,
             serverSelectionTimeoutMS=2500,
             directConnection=self.direct_connection,
-            authMechanism="SCRAM-SHA-256",
+            **self.additional_mongo_args,
         )
 
         try:
@@ -79,7 +84,7 @@ class MongoClient:
             logger.error("MongoDB server not available")
             raise e
 
-        logger.info("Connected to MongoDB")
+        logger.info(f"Connected to MongoDB: '{self.username + '@' if self.username else ''}{self.host}:{self.port}'")
         self._migrate()
         return self
 

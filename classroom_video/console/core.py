@@ -1,5 +1,5 @@
 from datetime import datetime
-from multiprocessing.pool import Pool
+from multiprocessing.pool import ThreadPool
 import os
 
 import pymongo.errors
@@ -60,19 +60,20 @@ def delete_videos_for_environment(environment_id: str, expiration_datetime: date
     video_meta_collection_count_with_retention_filters = video_meta_collection.count_documents(
         filter=mongo_environment_filter
     )
-    logger.info(f"Found {video_meta_collection_count_with_retention_filters} removal videos for '{environment_id}'")
+    logger.info(
+        f"Found {video_meta_collection_count_with_retention_filters} videos for removal from '{environment_id}'"
+    )
 
     video_meta_data_for_removal = []
     for video in video_meta_collection.find(filter=mongo_environment_filter, batch_size=5000):
         video_meta_data_for_removal.append(ExistingVideo.from_mongo(video))
 
-    video_meta_data_for_removal[0].full_path()
-    logger.info(f"{'(DRY)' if dry else ''} Removing {len(video_meta_data_for_removal)} videos from '{environment_id}'")
+    logger.info(f"{'(DRY) ' if dry else ''}Removing {len(video_meta_data_for_removal)} videos from '{environment_id}'")
     if not dry:
-        with Pool(4) as pool:
-            tqdm(
-                pool.imap_unordered(delete_video, video_meta_data_for_removal, chunksize=100),
-                total=len(video_meta_data_for_removal),
-            )
+        with ThreadPool(processes=16) as pool:
+            with tqdm(total=len(video_meta_data_for_removal), desc=f"Removing '{environment_id}' video") as pbar:
+                for _ in pool.imap_unordered(delete_video, video_meta_data_for_removal, chunksize=100):
+                    pbar.update()
             pool.close()
             pool.join()
+        logger.info("Finished removing videos from '{environment_id}'")
