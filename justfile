@@ -13,6 +13,8 @@ start-mongo:
         -v classroom-events-db:/data/db \
          mongo:4.4.6
 
+format:
+    black classroom_video
 
 lint-app:
     @pylint classroom_video

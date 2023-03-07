@@ -13,6 +13,7 @@ from pydantic import BaseModel
 import pymongo
 from wf_fastapi_auth0 import verify_token
 
+
 from .config import Config
 from .log import logger
 from .mongo.models import (
@@ -23,8 +24,10 @@ from .permissions import can_read, can_write
 from .routes import StatusResponse
 
 
+
 def video_check(video_meta_collection, path):
     existing = video_meta_collection.find_one({"meta.path": path}, {"_id": 1})
+
     if existing is not None:
         return VideoStatus(id=str(existing["_id"]), path=path, exists=True).json()
     return VideoStatus(path=path, exists=False).json()
@@ -80,7 +83,7 @@ async def load_video_data(request: Request, environment_id: str, camera_id: str,
     
     existing = video_meta_collection.find_one(
         {"meta.path": f"{environment_id}/{camera_id}/{path}"},
-        {"_id": 1, "meta": {"path": 1}}
+        {"_id": 1, "meta": {"path": 1}},
     )
     if existing is not None:
         realpath = f"{Config.WF_DATA_PATH}/{environment_id}/{camera_id}/{path}"
@@ -113,13 +116,14 @@ async def expunge_video(request: Request, environment_id: str, camera_id: str, p
     return StatusResponse(status="404")
 
 
+
 @router.post("/videos", response_model=List[Union[ExistingVideo, VideoExistsError]], dependencies=[Depends(can_write)])
 async def create_videos(request: Request, videos: str = Form(...), files: List[UploadFile] = File(...)):
     video_meta_collection = request.app.state.mongo_client.video_meta_collection()
-    
+
     d_videos = json.loads(videos)
     if len(d_videos) != len(files):
-        raise HTTPException(status_code=400, detail="number of videos does not match number of files" )
+        raise HTTPException(status_code=400, detail="number of videos does not match number of files")
     batch = []
     results = []
     for vid in d_videos:
@@ -148,7 +152,7 @@ async def create_videos(request: Request, videos: str = Form(...), files: List[U
                 results.append(ExistingVideo(id=iids[i], **vid))
             else:
                 os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                async with aiofiles.open(file_path, 'wb') as out_file:
+                async with aiofiles.open(file_path, "wb") as out_file:
                     while contents := await file.read(1024):
                         await out_file.write(contents)
                 results.append(ExistingVideo(id=iids[i], **vid))
@@ -171,8 +175,7 @@ async def video_existence_check(request: Request, videos: List[str]):
 @router.post("/status", response_model=ServiceStatusResponse, dependencies=[Depends(can_write)])
 async def service_status(request: Request):
     video_meta_collection = request.app.state.mongo_client.video_meta_collection()
-    
+
     return ServiceStatusResponse(
         estimated_document_count=video_meta_collection.estimated_document_count(),
     )
-

@@ -25,6 +25,12 @@ tqdm = "^4.65.0"
 
 [tool.poetry.group.dev.dependencies]
 behave = "^1.2.6"
+black = "^23.1.0"
+
+[tool.black]
+line-length = 120
+target-version = ['py39']
+include = '\.pyi?$'
 
 [tool.poetry.scripts]
 cleanup = 'classroom_video.console:cli'
