@@ -2,7 +2,6 @@ import os
 
 from bson.codec_options import CodecOptions
 import pymongo
-from pymongo import errors
 import pytz
 
 
@@ -18,6 +17,9 @@ class MongoClient:
     __instance = None
 
     def __new__(cls):
+        # pylint: disable=access-member-before-definition
+        # pylint: disable=protected-access
+
         if cls.__instance is None:
             cls.__instance = super().__new__(cls)
             cls.__instance.__initialized = False
@@ -31,6 +33,7 @@ class MongoClient:
         password: str = None,
         direct_connection: bool = None,
     ):
+        # pylint: disable=access-member-before-definition
         if self.__initialized:
             return
         self.__initialized = True
@@ -64,6 +67,9 @@ class MongoClient:
         self.client = None
         self.default_codec_options = CodecOptions(tz_aware=True, tzinfo=pytz.timezone("UTC"))
 
+    def _connection_string(self):
+        return f"{self.username + '@' if self.username else ''}{self.host}:{self.port}"
+
     def connect(self):
         if self.client is not None:
             return self
@@ -81,10 +87,10 @@ class MongoClient:
         try:
             self.client.admin.command("ping")
         except pymongo.errors.ConnectionFailure as e:
-            logger.error("MongoDB server not available")
+            logger.error(f"MongoDB server not available: '{self._connection_string()}'")
             raise e
 
-        logger.info(f"Connected to MongoDB: '{self.username + '@' if self.username else ''}{self.host}:{self.port}'")
+        logger.info(f"Connected to MongoDB: '{self._connection_string()}'")
         self._migrate()
         return self
 

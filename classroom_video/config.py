@@ -14,4 +14,5 @@ class ClassProperty(property):
 class Config:
     @ClassProperty
     def WF_DATA_PATH(cls):
+        # pylint: disable=no-self-argument
         return os.getenv("WF_DATA_PATH", "./")

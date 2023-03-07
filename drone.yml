@@ -1,20 +1,28 @@
 kind: pipeline
 type: kubernetes
-name: drone
+name: Build Classroom Video Store App
 service_account_name: default
 
 metadata:
   namespace: drone
 
+trigger:
+  branch:
+    - main
+  event:
+    exclude:
+      - pull_request
+
 steps:
-- name: set-tag
+- name: set-tag-app
   image: python:3.9
   environment:
     DRONE: "true"
   commands:
-  - echo -n v$DRONE_BUILD_NUMBER > .tags
+  - echo -n v$DRONE_BUILD_NUMBER,app-latest > .tags
   - cat .tags
-- name: docker-build
+
+- name: docker-build-app
   image: plugins/docker
   when:
     branch:
@@ -29,46 +37,59 @@ steps:
     password:
       from_secret: docker_password
     repo: wildflowerschools/wf-classroom-video-store
-# - name: docker-build-slim
-#   image: docker:dind
-#   when:
-#     branch:
-#       - main
-#     event:
-#       exclude:
-#         - pull_request
-#   environment:
-#     DRONE: "true"
-#     USERNAME:
-#       from_secret: docker_username
-#     PASSWORD:
-#       from_secret: docker_password
-#     TAG: wildflowerschools/wf-classroom-video-store
-#   commands:
-#     - export TAG_WITH_VERSION=$TAG:v$DRONE_BUILD_NUMBER
-#     - export TAG_WITH_VERSION_SLIM=$TAG_WITH_VERSION-slim
-#     - sleep 9 # give docker enough time to start
-#     # Pull recently built image from docker hub
-#     - docker pull $TAG_WITH_VERSION
-#     # Added "--include-cert-dirs" to resolve cacert errors
-#     # Added "--include-path /usr/local/lib" to avoid issues with pytz
-#     # Added "--include-path /lib" to avoid issues with urllib3 and dns lookup
-#     - docker run -v /var/run/docker.sock:/var/run/docker.sock dslim/docker-slim build --include-cert-dirs --include-path /lib --include-path /usr/local/lib --tag $TAG_WITH_VERSION_SLIM $TAG_WITH_VERSION
-#     - docker images
-#     - docker login -u $USERNAME -p $PASSWORD
-#     - docker push $TAG_WITH_VERSION_SLIM
-#   volumes:
-#     - name: dockersock
-#       path: /var/run
+    cache_from: wildflowerschools/wf-classroom-video-store:app-latest
 
-# services:
-#   - name: docker
-#     image: docker:dind
-#     privileged: true
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
+---
+kind: pipeline
+type: kubernetes
+name: Build Classroom Video Store CLI
+service_account_name: default
 
-# volumes:
-#   - name: dockersock
-#     temp: {}
+metadata:
+  namespace: drone
+
+trigger:
+  branch:
+    - main
+  event:
+    exclude:
+      - pull_request
+
+steps:
+  - name: set-tag-cli
+    image: python:3.9
+    environment:
+      DRONE: "true"
+    commands:
+      - echo -n cli-v$DRONE_BUILD_NUMBER,cli-latest > .tags
+      - cat .tags
+
+  - name: docker-build-cli
+    image: plugins/docker
+    when:
+      branch:
+        - main
+      event:
+        exclude:
+          - pull_request
+    settings:
+      dockerfile: deployment/cli.dockerfile
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      repo: wildflowerschools/wf-classroom-video-store
+      cache_from: wildflowerschools/wf-classroom-video-store:cli-latest
+
+
+services:
+ - name: docker
+   image: docker:dind
+   privileged: true
+   volumes:
+     - name: dockersock
+       path: /var/run
+
+volumes:
+ - name: dockersock
+   temp: {}

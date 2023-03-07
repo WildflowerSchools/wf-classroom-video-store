@@ -22,7 +22,7 @@ def delete_video(video_meta_data: ExistingVideo):
         logger.error(
             f"Failed removing video_meta record '{video_meta_data.id}' from MongoDB for environment '{video_meta_data.meta.environment_id}': {e}"
         )
-    except OSError as e:
+    except OSError:
         logger.error(
             f"Failed deleting video for record '{video_meta_data.id}' at path '{video_meta_data.full_path()}' for environment '{video_meta_data.meta.environment_id}'"
         )
@@ -38,12 +38,12 @@ def delete_videos_for_environment(environment_id: str, expiration_datetime: date
     mongo_retention_filters = []
     for raw_retention_record in video_retention_collection.find({"environment_id": environment_id}):
         retention_record = ExistingRetentionRule.from_mongo(raw_retention_record)
-        filter = {"timestamp": {"$gte": retention_record.start, "$lte": retention_record.end}}
+        nor_filter = {"timestamp": {"$gte": retention_record.start, "$lte": retention_record.end}}
 
         if len(retention_record.camera_ids) > 0:
-            filter["meta.camera_id"] = {"$in": retention_record.camera_ids}
+            nor_filter["meta.camera_id"] = {"$in": retention_record.camera_ids}
 
-        mongo_retention_filters.append({"$nor": [filter]})
+        mongo_retention_filters.append({"$nor": [nor_filter]})
 
     mongo_environment_filter = {
         "$and": [

@@ -9,6 +9,9 @@ class HoneycombCachingClient:
     __instance = None
 
     def __new__(cls):
+        # pylint: disable=access-member-before-definition
+        # pylint: disable=protected-access
+
         if cls.__instance is None:
             cls.__instance = super().__new__(cls)
             cls.__instance.__initialized = False
@@ -22,6 +25,7 @@ class HoneycombCachingClient:
         auth_client_secret=None,
         auth_audience=None,
     ):
+        # pylint: disable=access-member-before-definition
         if self.__initialized:
             return
         self.__initialized = True

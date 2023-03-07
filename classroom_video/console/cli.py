@@ -1,9 +1,9 @@
-import click
 from datetime import datetime, time, timedelta
-import pytz
 import os
 
+import click
 from dotenv import load_dotenv
+import pytz
 
 from classroom_video.honeycomb_service import HoneycombCachingClient
 from classroom_video.log import logger
@@ -56,13 +56,20 @@ def delete_video(retention_delta, environment_ids, dry):
     # Fetch all honeycomb environments
     environments = HoneycombCachingClient().fetch_all_environments(output_format="list")
 
+    if len(environments) == 0:
+        logger.warning("No environments found")
+        return
+
     for environment in environments:
         if len(environment_ids) > 0 and environment["environment_id"] not in environment_ids:
+            logger.info(
+                f"Skipping environment '{environment['name']}' ({environment['environment_id']}). Not specified in provided environment-ids."
+            )
             continue
 
         if environment["timezone_name"] is None or environment["timezone_name"] == "":
             logger.warning(
-                f"Will not delete '{environment['name']}' ({environment['environment_id']}) videos, environment has not specified a timezone"
+                f"Will not delete videos from '{environment['name']}' ({environment['environment_id']}) videos, environment has not specified a timezone"
             )
             continue
 
@@ -72,7 +79,7 @@ def delete_video(retention_delta, environment_ids, dry):
         ).astimezone(pytz.utc) - timedelta(days=retention_delta)
 
         logger.info(
-            f"Removing '{environment['name']}' ({environment['environment_id']}) videos older than {expiration_datetime}"
+            f"Removing videos from '{environment['name']}' ({environment['environment_id']}) that are older than {expiration_datetime}"
         )
         delete_videos_for_environment(
             environment_id=environment["environment_id"], expiration_datetime=expiration_datetime, dry=dry
