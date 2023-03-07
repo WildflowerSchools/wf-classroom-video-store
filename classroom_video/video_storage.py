@@ -14,9 +14,9 @@ from wf_fastapi_auth0 import verify_token, get_subject_domain
 from wf_fastapi_auth0.wf_permissions import AuthRequest, check_requests
 
 from classroom_video.models import (
-        Video,
-        ExistingVideo,
-        videos as video_db,
+    Video,
+    ExistingVideo,
+    videos as video_db,
 )
 from .config import logger
 
@@ -25,12 +25,12 @@ WF_DATA_PATH = os.environ.get("WF_DATA_PATH", "./")
 
 
 async def can_read(perm_info: tuple = Depends(get_subject_domain)):
-    resp = await check_requests([AuthRequest(sub=perm_info[0], dom=perm_info[1], obj="classroom:videos", act='read')])
+    resp = await check_requests([AuthRequest(sub=perm_info[0], dom=perm_info[1], obj="classroom:videos", act="read")])
     return resp[0]["allow"]
 
 
 async def can_write(perm_info: tuple = Depends(get_subject_domain)):
-    resp = await check_requests([AuthRequest(sub=perm_info[0], dom=perm_info[1], obj="classroom:videos", act='write')])
+    resp = await check_requests([AuthRequest(sub=perm_info[0], dom=perm_info[1], obj="classroom:videos", act="write")])
     return resp[0]["allow"]
 
 
@@ -50,36 +50,75 @@ class VideoStatus(BaseModel):
     path: str
     exists: bool
 
+
 class VideoExistsError(BaseModel):
     path: str
     id: str
     disposition: str = "video-exists"
 
+
 router = APIRouter()
+
 
 ########################################################################
 # Routes
 ########################################################################
-@router.get("/videos/{environment_id}", response_model=List[ExistingVideo], dependencies=[Depends(verify_token), Depends(can_read)])
-async def list_videos(environment_id: str, start_date: datetime.datetime, end_date: datetime.datetime, skip: int=0, limit: int=100):
+@router.get(
+    "/videos/{environment_id}",
+    response_model=List[ExistingVideo],
+    dependencies=[Depends(verify_token), Depends(can_read)],
+)
+async def list_videos(
+    environment_id: str,
+    start_date: datetime.datetime,
+    end_date: datetime.datetime,
+    skip: int = 0,
+    limit: int = 100,
+):
     results = []
-    for video in video_db.find({"meta.environment_id": environment_id, "timestamp": {"$gte": start_date, "$lt": end_date}})[skip:(skip+limit)]:
+    for video in video_db.find(
+        {
+            "meta.environment_id": environment_id,
+            "timestamp": {"$gte": start_date, "$lt": end_date},
+        }
+    )[skip : (skip + limit)]:
         results.append(ExistingVideo.from_mongo(video))
     return results
 
 
-@router.get("/videos/{environment_id}/device/{camera_id}", response_model=List[ExistingVideo], dependencies=[Depends(verify_token), Depends(can_read)])
-async def list_videos_for_camera(environment_id: str, camera_id: str, start_date: datetime.datetime, end_date: datetime.datetime, skip: int=0, limit: int=100):
+@router.get(
+    "/videos/{environment_id}/device/{camera_id}",
+    response_model=List[ExistingVideo],
+    dependencies=[Depends(verify_token), Depends(can_read)],
+)
+async def list_videos_for_camera(
+    environment_id: str,
+    camera_id: str,
+    start_date: datetime.datetime,
+    end_date: datetime.datetime,
+    skip: int = 0,
+    limit: int = 100,
+):
     results = []
-    for video in video_db.find({"meta.environment_id": environment_id, "meta.camera_id": camera_id, "timestamp": {"$gte": start_date, "$lt": end_date}})[skip:(skip+limit)]:
+    for video in video_db.find(
+        {
+            "meta.environment_id": environment_id,
+            "meta.camera_id": camera_id,
+            "timestamp": {"$gte": start_date, "$lt": end_date},
+        }
+    )[skip : (skip + limit)]:
         results.append(ExistingVideo.from_mongo(video))
     return results
 
-@router.get("/video/{environment_id}/{camera_id}/{path:path}/data", dependencies=[Depends(verify_token), Depends(can_read)])
+
+@router.get(
+    "/video/{environment_id}/{camera_id}/{path:path}/data",
+    dependencies=[Depends(verify_token), Depends(can_read)],
+)
 async def load_video_data(environment_id: str, camera_id: str, path: str):
     existing = video_db.find_one(
         {"meta.path": f"{environment_id}/{camera_id}/{path}"},
-        {"_id": 1, "meta": {"path": 1}}
+        {"_id": 1, "meta": {"path": 1}},
     )
     if existing is not None:
         realpath = f"{WF_DATA_PATH}/{environment_id}/{camera_id}/{path}"
@@ -88,7 +127,11 @@ async def load_video_data(environment_id: str, camera_id: str, path: str):
     raise HTTPException(status_code=404, detail="video not found")
 
 
-@router.get("/video/{environment_id}/{camera_id}/{path:path}", response_model=ExistingVideo, dependencies=[Depends(verify_token), Depends(can_read)])
+@router.get(
+    "/video/{environment_id}/{camera_id}/{path:path}",
+    response_model=ExistingVideo,
+    dependencies=[Depends(verify_token), Depends(can_read)],
+)
 async def load_video_metadata(environment_id: str, camera_id: str, path: str):
     existing = video_db.find_one({"meta.path": f"{environment_id}/{camera_id}/{path}"})
     if existing is not None:
@@ -96,7 +139,11 @@ async def load_video_metadata(environment_id: str, camera_id: str, path: str):
     raise HTTPException(status_code=404, detail="video not found")
 
 
-@router.delete("/video/{environment_id}/{camera_id}/{path:path}", response_model=StatusResponse, dependencies=[Depends(verify_token), Depends(can_write)])
+@router.delete(
+    "/video/{environment_id}/{camera_id}/{path:path}",
+    response_model=StatusResponse,
+    dependencies=[Depends(verify_token), Depends(can_write)],
+)
 async def expunge_video(environment_id: str, camera_id: str, path: str):
     existing = video_db.find_one({"meta.path": f"{environment_id}/{camera_id}/{path}"})
     if existing is not None:
@@ -108,11 +155,15 @@ async def expunge_video(environment_id: str, camera_id: str, path: str):
     return StatusResponse(status="404")
 
 
-@router.post("/videos", response_model=List[Union[ExistingVideo, VideoExistsError]], dependencies=[Depends(verify_token), Depends(can_write)])
-async def create_videos(videos:str = Form(...), files:List[UploadFile] = File(...)):
+@router.post(
+    "/videos",
+    response_model=List[Union[ExistingVideo, VideoExistsError]],
+    dependencies=[Depends(verify_token), Depends(can_write)],
+)
+async def create_videos(videos: str = Form(...), files: List[UploadFile] = File(...)):
     d_videos = json.loads(videos)
     if len(d_videos) != len(files):
-        raise HTTPException(status_code=400, detail="number of videos does not match number of files" )
+        raise HTTPException(status_code=400, detail="number of videos does not match number of files")
     batch = []
     results = []
     for vid in d_videos:
@@ -130,7 +181,9 @@ async def create_videos(videos:str = Form(...), files:List[UploadFile] = File(..
         iids = [item["_id"] for item in batch]
         for write_err in err.details["writeErrors"]:
             existing = video_db.find({"meta.path": write_err["keyValue"]["meta.path"]}, {"_id": 1})
-            iids[write_err["index"]] = VideoExistsError(path=write_err["keyValue"]["meta.path"], id=str(existing[0]["_id"]))
+            iids[write_err["index"]] = VideoExistsError(
+                path=write_err["keyValue"]["meta.path"], id=str(existing[0]["_id"])
+            )
     for i, file in enumerate(files):
         if isinstance(iids[i], VideoExistsError):
             results.append(iids[i])
@@ -141,14 +194,19 @@ async def create_videos(videos:str = Form(...), files:List[UploadFile] = File(..
                 results.append(ExistingVideo(id=iids[i], **vid))
             else:
                 os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                async with aiofiles.open(file_path, 'wb') as out_file:
+                async with aiofiles.open(file_path, "wb") as out_file:
                     while contents := await file.read(1024):
                         await out_file.write(contents)
                 results.append(ExistingVideo(id=iids[i], **vid))
     return results
 
-@router.post("/videos/check", response_model=List[VideoStatus], dependencies=[Depends(verify_token), Depends(can_write)])
-async def video_existence_check(videos:List[str]):
+
+@router.post(
+    "/videos/check",
+    response_model=List[VideoStatus],
+    dependencies=[Depends(verify_token), Depends(can_write)],
+)
+async def video_existence_check(videos: List[str]):
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
         futures = executor.map(video_check, videos)
@@ -161,7 +219,11 @@ class ServiceStatusResponse(BaseModel):
     estimated_document_count: int
 
 
-@router.post("/status", response_model=ServiceStatusResponse, dependencies=[Depends(verify_token), Depends(can_write)])
+@router.post(
+    "/status",
+    response_model=ServiceStatusResponse,
+    dependencies=[Depends(verify_token), Depends(can_write)],
+)
 async def service_status():
     return ServiceStatusResponse(
         estimated_document_count=video_db.estimated_document_count(),

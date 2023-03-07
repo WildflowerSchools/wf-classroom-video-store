@@ -15,9 +15,7 @@ import pytz
 
 codec_options = CodecOptions(tz_aware=True, uuid_representation=UuidRepresentation.STANDARD)
 
-client = pymongo.MongoClient(
-    os.environ.get("WF_MONGODB_HOST")
-)
+client = pymongo.MongoClient(os.environ.get("WF_MONGODB_HOST"))
 
 db = client["video_storage"]
 try:
@@ -26,12 +24,16 @@ except pymongo.errors.PyMongoError:
     pass
 
 
-videos = db.video_meta.with_options(codec_options=CodecOptions(
-    tz_aware=True,
-    tzinfo=pytz.timezone('UTC')))
+videos = db.video_meta.with_options(codec_options=CodecOptions(tz_aware=True, tzinfo=pytz.timezone("UTC")))
 
-videos.create_index([('meta.path', pymongo.ASCENDING)], unique=True)
-videos.create_index([('timestamp', pymongo.ASCENDING), ("meta.environment_id", pymongo.ASCENDING), ("meta.camera_id", pymongo.ASCENDING)])
+videos.create_index([("meta.path", pymongo.ASCENDING)], unique=True)
+videos.create_index(
+    [
+        ("timestamp", pymongo.ASCENDING),
+        ("meta.environment_id", pymongo.ASCENDING),
+        ("meta.camera_id", pymongo.ASCENDING),
+    ]
+)
 
 
 class OID(str):
@@ -52,7 +54,6 @@ class OID(str):
 
 
 class MongoModel(BaseModel):
-
     class Config(BaseConfig):
         allow_population_by_field_name = True
         use_enum_values = True
@@ -66,15 +67,15 @@ class MongoModel(BaseModel):
 
     @classmethod
     def from_mongo(cls, data: dict):
-        """We must convert _id into "id". """
+        """We must convert _id into "id"."""
         if not data:
             return data
-        _id = data.pop('_id', None)
+        _id = data.pop("_id", None)
         return cls(**dict(data, id=_id))
 
     def mongo(self, **kwargs):
-        exclude_unset = kwargs.pop('exclude_unset', True)
-        by_alias = kwargs.pop('by_alias', True)
+        exclude_unset = kwargs.pop("exclude_unset", True)
+        by_alias = kwargs.pop("by_alias", True)
 
         parsed = self.dict(
             exclude_none=False,
@@ -83,8 +84,8 @@ class MongoModel(BaseModel):
             **kwargs,
         )
         # Mongo uses `_id` as default key. We should stick to that as well.
-        if '_id' not in parsed and 'id' in parsed:
-            parsed['_id'] = parsed.pop('id')
+        if "_id" not in parsed and "id" in parsed:
+            parsed["_id"] = parsed.pop("id")
         return parsed
 
 
@@ -92,10 +93,10 @@ class VideoMeta(MongoModel):
     environment_id: str
     camera_id: str
     assignment_id: Optional[str]
-    path: Optional[str] # path to file in filesystem, mirrored to S3
+    path: Optional[str]  # path to file in filesystem, mirrored to S3
     duration_seconds: Optional[NonNegativeFloat]
     fps: Optional[float]
-    frame_offsets: Optional[List[float]] # milliseconds from timestamp for each frame in the video
+    frame_offsets: Optional[List[float]]  # milliseconds from timestamp for each frame in the video
 
 
 class Video(MongoModel):
