@@ -67,7 +67,7 @@ def delete_videos_for_environment(environment_id: str, expiration_datetime: date
         video_meta_data_for_removal.append(ExistingVideo.from_mongo(video))
 
     video_meta_data_for_removal[0].full_path()
-    logger.info(f"Removing {len(video_meta_data_for_removal)} videos from '{environment_id}' {'(DRY)' if dry else ''}")
+    logger.info(f"{'(DRY)' if dry else ''} Removing {len(video_meta_data_for_removal)} videos from '{environment_id}'")
     if not dry:
         with Pool(4) as pool:
             tqdm(
