@@ -26,6 +26,7 @@ async def startup():
     logger.info("Starting API...")
     app.state.mongo_client = MongoClient().connect()
 
+
 app.include_router(routes_video_storage.router)
 app.include_router(routes_video_retention.router)
 

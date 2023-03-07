@@ -77,6 +77,7 @@ class VideoMeta(MongoModel):
     def full_path(self):
         return Path(Config.WF_DATA_PATH).joinpath(self.path)
 
+
 class Video(MongoModel):
     timestamp: datetime.datetime
     meta: VideoMeta

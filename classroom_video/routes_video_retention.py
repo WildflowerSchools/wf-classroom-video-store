@@ -8,10 +8,7 @@ from .mongo.models import ExistingRetentionRule, RetentionRule
 from .permissions import can_read, can_write
 from .routes import StatusResponse
 
-router = APIRouter(
-    prefix="/retention_rules",
-    tags=["retention_rules"],
-    dependencies=[Depends(verify_token)])
+router = APIRouter(prefix="/retention_rules", tags=["retention_rules"], dependencies=[Depends(verify_token)])
 
 
 @router.post("/", response_model=ExistingRetentionRule, dependencies=[Depends(can_write)])

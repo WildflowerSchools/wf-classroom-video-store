@@ -23,12 +23,14 @@ class MongoClient:
             cls.__instance.__initialized = False
         return cls.__instance
 
-    def __init__(self,
-                 host: str = None,
-                 port: int = None,
-                 username: str = None,
-                 password: str = None,
-                 direct_connection: bool = None):
+    def __init__(
+        self,
+        host: str = None,
+        port: int = None,
+        username: str = None,
+        password: str = None,
+        direct_connection: bool = None,
+    ):
         if self.__initialized:
             return
         self.__initialized = True
@@ -44,7 +46,7 @@ class MongoClient:
         self.direct_connection = direct_connection
         if self.direct_connection is None:
             direct_connection = os.environ.get("WF_MONGODB_DIRECT_CONNECTION", "False")
-            self.direct_connection = direct_connection.lower() in ['true', '1', 't', 'y']
+            self.direct_connection = direct_connection.lower() in ["true", "1", "t", "y"]
 
         self.username = username
         if self.username is None:
@@ -55,9 +57,7 @@ class MongoClient:
             self.password = os.environ.get("WF_MONGODB_PASSWORD")
 
         self.client = None
-        self.default_codec_options = CodecOptions(
-            tz_aware=True,
-            tzinfo=pytz.timezone('UTC'))
+        self.default_codec_options = CodecOptions(tz_aware=True, tzinfo=pytz.timezone("UTC"))
 
     def connect(self):
         if self.client is not None:
@@ -70,11 +70,11 @@ class MongoClient:
             password=self.password,
             serverSelectionTimeoutMS=2500,
             directConnection=self.direct_connection,
-            authMechanism='SCRAM-SHA-256'
+            authMechanism="SCRAM-SHA-256",
         )
 
         try:
-            self.client.admin.command('ping')
+            self.client.admin.command("ping")
         except pymongo.errors.ConnectionFailure as e:
             logger.error("MongoDB server not available")
             raise e
@@ -129,6 +129,12 @@ class MongoClient:
             raise e
 
         video_meta_collection = self.video_meta_collection()
-        video_meta_collection.create_index([('meta.path', pymongo.ASCENDING)], unique=True)
-        video_meta_collection.create_index([('timestamp', pymongo.ASCENDING), ("meta.environment_id", pymongo.ASCENDING), ("meta.camera_id", pymongo.ASCENDING)])
+        video_meta_collection.create_index([("meta.path", pymongo.ASCENDING)], unique=True)
+        video_meta_collection.create_index(
+            [
+                ("timestamp", pymongo.ASCENDING),
+                ("meta.environment_id", pymongo.ASCENDING),
+                ("meta.camera_id", pymongo.ASCENDING),
+            ]
+        )
         logger.info("Finishing running MongoDB migrations")

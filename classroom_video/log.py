@@ -33,5 +33,6 @@ class LogConfig(BaseModel):
         "classroom_video": {"handlers": ["default"], "level": LOG_LEVEL},
     }
 
+
 dictConfig(LogConfig().dict())
 logger = logging.getLogger("classroom_video")

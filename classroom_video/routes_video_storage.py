@@ -16,13 +16,9 @@ from wf_fastapi_auth0 import verify_token
 
 from .config import Config
 from .log import logger
-from .mongo.models import (
-        Video,
-        ExistingVideo
-)
+from .mongo.models import Video, ExistingVideo
 from .permissions import can_read, can_write
 from .routes import StatusResponse
-
 
 
 def video_check(video_meta_collection, path):
@@ -49,30 +45,53 @@ class VideoExistsError(BaseModel):
     disposition: str = "video-exists"
 
 
-router = APIRouter(
-    tags=["videos"],
-    dependencies=[Depends(verify_token)])
+router = APIRouter(tags=["videos"], dependencies=[Depends(verify_token)])
 
 
 ########################################################################
 # Routes
 ########################################################################
 @router.get("/videos/{environment_id}", response_model=List[ExistingVideo], dependencies=[Depends(can_read)])
-async def list_videos(request: Request, environment_id: str, start_date: datetime.datetime, end_date: datetime.datetime, skip: int=0, limit: int=100):
+async def list_videos(
+    request: Request,
+    environment_id: str,
+    start_date: datetime.datetime,
+    end_date: datetime.datetime,
+    skip: int = 0,
+    limit: int = 100,
+):
     video_meta_collection = request.app.state.mongo_client.video_meta_collection()
 
     results = []
-    for video in video_meta_collection.find({"meta.environment_id": environment_id, "timestamp": {"$gte": start_date, "$lt": end_date}})[skip:(skip+limit)]:
+    for video in video_meta_collection.find(
+        {"meta.environment_id": environment_id, "timestamp": {"$gte": start_date, "$lt": end_date}}
+    )[skip : (skip + limit)]:
         results.append(ExistingVideo.from_mongo(video))
     return results
 
 
-@router.get("/videos/{environment_id}/device/{camera_id}", response_model=List[ExistingVideo], dependencies=[Depends(can_read)])
-async def list_videos_for_camera(request: Request, environment_id: str, camera_id: str, start_date: datetime.datetime, end_date: datetime.datetime, skip: int=0, limit: int=100):
+@router.get(
+    "/videos/{environment_id}/device/{camera_id}", response_model=List[ExistingVideo], dependencies=[Depends(can_read)]
+)
+async def list_videos_for_camera(
+    request: Request,
+    environment_id: str,
+    camera_id: str,
+    start_date: datetime.datetime,
+    end_date: datetime.datetime,
+    skip: int = 0,
+    limit: int = 100,
+):
     video_meta_collection = request.app.state.mongo_client.video_meta_collection()
-    
+
     results = []
-    for video in video_meta_collection.find({"meta.environment_id": environment_id, "meta.camera_id": camera_id, "timestamp": {"$gte": start_date, "$lt": end_date}})[skip:(skip+limit)]:
+    for video in video_meta_collection.find(
+        {
+            "meta.environment_id": environment_id,
+            "meta.camera_id": camera_id,
+            "timestamp": {"$gte": start_date, "$lt": end_date},
+        }
+    )[skip : (skip + limit)]:
         results.append(ExistingVideo.from_mongo(video))
     return results
 
@@ -80,7 +99,7 @@ async def list_videos_for_camera(request: Request, environment_id: str, camera_i
 @router.get("/video/{environment_id}/{camera_id}/{path:path}/data", dependencies=[Depends(can_read)])
 async def load_video_data(request: Request, environment_id: str, camera_id: str, path: str):
     video_meta_collection = request.app.state.mongo_client.video_meta_collection()
-    
+
     existing = video_meta_collection.find_one(
         {"meta.path": f"{environment_id}/{camera_id}/{path}"},
         {"_id": 1, "meta": {"path": 1}},
@@ -92,20 +111,24 @@ async def load_video_data(request: Request, environment_id: str, camera_id: str,
     raise HTTPException(status_code=404, detail="video not found")
 
 
-@router.get("/video/{environment_id}/{camera_id}/{path:path}", response_model=ExistingVideo, dependencies=[Depends(can_read)])
+@router.get(
+    "/video/{environment_id}/{camera_id}/{path:path}", response_model=ExistingVideo, dependencies=[Depends(can_read)]
+)
 async def load_video_metadata(request: Request, environment_id: str, camera_id: str, path: str):
     video_meta_collection = request.app.state.mongo_client.video_meta_collection()
-    
+
     existing = video_meta_collection.find_one({"meta.path": f"{environment_id}/{camera_id}/{path}"})
     if existing is not None:
         return ExistingVideo.from_mongo(existing)
     raise HTTPException(status_code=404, detail="video not found")
 
 
-@router.delete("/video/{environment_id}/{camera_id}/{path:path}", response_model=StatusResponse, dependencies=[Depends(can_write)])
+@router.delete(
+    "/video/{environment_id}/{camera_id}/{path:path}", response_model=StatusResponse, dependencies=[Depends(can_write)]
+)
 async def expunge_video(request: Request, environment_id: str, camera_id: str, path: str):
     video_meta_collection = request.app.state.mongo_client.video_meta_collection()
-    
+
     existing = video_meta_collection.find_one({"meta.path": f"{environment_id}/{camera_id}/{path}"})
     if existing is not None:
         # TODO - remove from db, and remove from filesystem
@@ -114,7 +137,6 @@ async def expunge_video(request: Request, environment_id: str, camera_id: str, p
         file_path.unlink()
         return StatusResponse(status="200")
     return StatusResponse(status="404")
-
 
 
 @router.post("/videos", response_model=List[Union[ExistingVideo, VideoExistsError]], dependencies=[Depends(can_write)])
@@ -141,7 +163,9 @@ async def create_videos(request: Request, videos: str = Form(...), files: List[U
         iids = [item["_id"] for item in batch]
         for write_err in err.details["writeErrors"]:
             existing = video_meta_collection.find({"meta.path": write_err["keyValue"]["meta.path"]}, {"_id": 1})
-            iids[write_err["index"]] = VideoExistsError(path=write_err["keyValue"]["meta.path"], id=str(existing[0]["_id"]))
+            iids[write_err["index"]] = VideoExistsError(
+                path=write_err["keyValue"]["meta.path"], id=str(existing[0]["_id"])
+            )
     for i, file in enumerate(files):
         if isinstance(iids[i], VideoExistsError):
             results.append(iids[i])
