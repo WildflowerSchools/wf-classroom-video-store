@@ -76,4 +76,4 @@ def delete_videos_for_environment(environment_id: str, expiration_datetime: date
                     pbar.update()
             pool.close()
             pool.join()
-        logger.info("Finished removing videos from '{environment_id}'")
+        logger.info(f"Finished removing videos from '{environment_id}'")
