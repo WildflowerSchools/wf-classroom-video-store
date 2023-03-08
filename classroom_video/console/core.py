@@ -1,8 +1,9 @@
 from datetime import datetime
+import math
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
-import queue
 import os
+import queue
 import time
 
 import pymongo.errors
@@ -11,14 +12,16 @@ from tqdm import tqdm
 from classroom_video.log import logger
 from classroom_video.mongo.client import MongoClient
 from classroom_video.mongo.models import ExistingRetentionRule, ExistingVideo
+from classroom_video.util import is_running_in_kubernetes
 
 
 def delete_video(video_meta_data: ExistingVideo):
     video_meta_collection = MongoClient().connect().video_meta_collection()
 
     try:
-        if os.path.exists(video_meta_data.full_path()):
-            os.unlink(video_meta_data.full_path())
+        video_meta_data_path = video_meta_data.full_path()
+        if os.path.exists(video_meta_data_path):
+            os.unlink(video_meta_data_path)
 
         video_meta_collection.delete_one({"_id": video_meta_data.id})
     except pymongo.errors.PyMongoError as e:
@@ -33,11 +36,16 @@ def delete_video(video_meta_data: ExistingVideo):
 
 def progress(num_tasks: int, completed_queue: mp.Queue, environment_id: str):
     completed = 0
-    with tqdm(total=num_tasks, desc=f"Removing '{environment_id}' video") as progress:
+    with tqdm(total=num_tasks, desc=f"Removing '{environment_id}' video") as progress_bar:
         while completed < num_tasks:
+            if is_running_in_kubernetes() and (completed % math.ceil(num_tasks * 0.01)) == 0:
+                logger.info(
+                    f"Removing video for '{environment_id}' progress: {completed}/{num_tasks} ({str(round(completed/num_tasks * 100))}%)"
+                )
+
             completed_queue.get()
             completed += 1
-            progress.update()
+            progress_bar.update()
 
 
 def delete_videos_for_environment(environment_id: str, expiration_datetime: datetime, dry=True):
@@ -99,7 +107,7 @@ def delete_videos_for_environment(environment_id: str, expiration_datetime: date
     stop_event = mp.Event()
 
     # Launch the video_consumer threads. These consumers read work from the work_queue.
-    pool = ThreadPool(processes=16)
+    pool = ThreadPool(processes=32)
     pool.apply_async(
         video_consumer,
         args=(
@@ -110,6 +118,9 @@ def delete_videos_for_environment(environment_id: str, expiration_datetime: date
     )
 
     # Start a separate process to track and report progress
+    logger.info(
+        f"Progress bar for video deletion starting for '{environment_id}'. To view in kubernetes, you will need to 'attach' to the pod"
+    )
     progress_process = mp.Process(
         target=progress,
         args=(
