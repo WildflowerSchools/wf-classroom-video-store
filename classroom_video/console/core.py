@@ -98,6 +98,7 @@ def delete_videos_for_environment(environment_id: str, expiration_datetime: date
     completed_queue = manager.Queue()
     stop_event = mp.Event()
 
+    # Launch the video_consumer threads. These consumers read work from the work_queue.
     pool = ThreadPool(processes=16)
     pool.apply_async(
         video_consumer,
@@ -108,25 +109,33 @@ def delete_videos_for_environment(environment_id: str, expiration_datetime: date
         ),
     )
 
+    # Start a separate process to track and report progress
     progress_process = mp.Process(
         target=progress,
         args=(
             video_meta_collection_count_with_retention_filters,
-            mp_completed_queue,
+            completed_queue,
             environment_id,
         ),
     )
     progress_process.start()
 
+    # Fetch video_meta_data and add each record to the work_queue
     for video in video_meta_collection.find(filter=mongo_environment_filter, batch_size=5000):
         work_queue.put(ExistingVideo.from_mongo(video))
 
+    # The work_queue has been loaded up with tasks. Now wait for the queue to reach 0.
     while True:
         time.sleep(0.5)
         if work_queue.qsize() == 0:
             break
 
+    # Send a stop event to all worker threads
     stop_event.set()
+
+    # Wait for worker_threads to wrap up
     pool.close()
     pool.join()
+
+    # Stop the progress reporter process
     progress_process.terminate()
