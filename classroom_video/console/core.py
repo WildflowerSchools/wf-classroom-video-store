@@ -1,6 +1,9 @@
 from datetime import datetime
+import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
+import queue
 import os
+import time
 
 import pymongo.errors
 from tqdm import tqdm
@@ -26,6 +29,15 @@ def delete_video(video_meta_data: ExistingVideo):
         logger.error(
             f"Failed deleting video for record '{video_meta_data.id}' at path '{video_meta_data.full_path()}' for environment '{video_meta_data.meta.environment_id}'"
         )
+
+
+def progress(num_tasks: int, completed_queue: mp.Queue, environment_id: str):
+    completed = 0
+    with tqdm(total=num_tasks, desc=f"Removing '{environment_id}' video") as progress:
+        while completed < num_tasks:
+            completed_queue.get()
+            completed += 1
+            progress.update()
 
 
 def delete_videos_for_environment(environment_id: str, expiration_datetime: datetime, dry=True):
@@ -64,16 +76,57 @@ def delete_videos_for_environment(environment_id: str, expiration_datetime: date
         f"Found {video_meta_collection_count_with_retention_filters} videos for removal from '{environment_id}'"
     )
 
-    video_meta_data_for_removal = []
-    for video in video_meta_collection.find(filter=mongo_environment_filter, batch_size=5000):
-        video_meta_data_for_removal.append(ExistingVideo.from_mongo(video))
+    if dry:
+        logger.info(f"(DRY) Not deleting videos from '{environment_id}'")
+        return
 
-    logger.info(f"{'(DRY) ' if dry else ''}Removing {len(video_meta_data_for_removal)} videos from '{environment_id}'")
-    if not dry:
-        with ThreadPool(processes=16) as pool:
-            with tqdm(total=len(video_meta_data_for_removal), desc=f"Removing '{environment_id}' video") as pbar:
-                for _ in pool.imap_unordered(delete_video, video_meta_data_for_removal, chunksize=100):
-                    pbar.update()
-            pool.close()
-            pool.join()
-        logger.info(f"Finished removing videos from '{environment_id}'")
+    def video_consumer(work_queue: mp.Queue, completed_queue: mp.Queue, stop_event):
+        while True:
+            if stop_event.is_set():
+                break
+
+            try:
+                video_meta_data = work_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+
+            delete_video(video_meta_data)
+            completed_queue.put(1)
+
+    manager = mp.Manager()
+    work_queue = manager.Queue(maxsize=30000)
+    completed_queue = manager.Queue()
+    stop_event = mp.Event()
+
+    pool = ThreadPool(processes=16)
+    pool.apply_async(
+        video_consumer,
+        args=(
+            work_queue,
+            completed_queue,
+            stop_event,
+        ),
+    )
+
+    progress_process = mp.Process(
+        target=progress,
+        args=(
+            video_meta_collection_count_with_retention_filters,
+            mp_completed_queue,
+            environment_id,
+        ),
+    )
+    progress_process.start()
+
+    for video in video_meta_collection.find(filter=mongo_environment_filter, batch_size=5000):
+        work_queue.put(ExistingVideo.from_mongo(video))
+
+    while True:
+        time.sleep(0.5)
+        if work_queue.qsize() == 0:
+            break
+
+    stop_event.set()
+    pool.close()
+    pool.join()
+    progress_process.terminate()

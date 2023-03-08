@@ -78,11 +78,7 @@ class MongoClient:
         if self.client is not None:
             return self
 
-        self.client = pymongo.MongoClient(
-            host=self.host,
-            serverSelectionTimeoutMS=2500,
-            **self.additional_mongo_args
-        )
+        self.client = pymongo.MongoClient(host=self.host, serverSelectionTimeoutMS=2500, **self.additional_mongo_args)
 
         try:
             self.client.admin.command("ping")
