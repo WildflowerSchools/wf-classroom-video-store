@@ -9,7 +9,7 @@ class LogConfig(BaseModel):
     """Logging configuration to be set for the server"""
 
     LOGGER_NAME: str = "classroom_video"
-    LOG_FORMAT: str = "%(levelprefix)s | %(asctime)s | %(message)s"
+    LOG_FORMAT: str = "%(asctime)s,%(msecs)03d | %(levelprefix)s | %(name)s | %(message)s"
     LOG_LEVEL: str = "DEBUG"
 
     # Logging config

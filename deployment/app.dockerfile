@@ -12,4 +12,4 @@ RUN poetry config virtualenvs.create false && poetry install --without dev --no-
 COPY log-config.yaml /app/log-config.yaml
 COPY classroom_video/ /app/classroom_video/
 
-CMD ["uvicorn", "classroom_video:app", "--host", "0.0.0.0", "--port", "2300"]
+CMD ["uvicorn", "classroom_video:app", "--host", "0.0.0.0", "--port", "2300", "--log-config", "log-config.yaml"]
