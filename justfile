@@ -17,7 +17,7 @@ build-docker: lint-app
     @docker-compose -f stack.yml --profile api --profile cli build
 
 run-docker: build-docker
-    @docker-compose -f stack.yml up -d
+    @docker-compose -f stack.yml --profile api up -d
 
 test:
     behave
