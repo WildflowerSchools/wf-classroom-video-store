@@ -107,15 +107,19 @@ def delete_videos_for_environment(environment_id: str, expiration_datetime: date
     stop_event = mp.Event()
 
     # Launch the video_consumer threads. These consumers read work from the work_queue.
-    pool = ThreadPool(processes=32)
-    pool.apply_async(
-        video_consumer,
-        args=(
-            work_queue,
-            completed_queue,
-            stop_event,
-        ),
-    )
+    thread_count = 8
+    pool = ThreadPool(processes=thread_count)
+    _ = [
+        pool.apply_async(
+            video_consumer,
+            args=(
+                work_queue,
+                completed_queue,
+                stop_event,
+            ),
+        )
+        for _ in range(thread_count)
+    ]
 
     # Start a separate process to track and report progress
     logger.info(
