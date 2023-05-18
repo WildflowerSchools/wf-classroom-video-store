@@ -21,6 +21,11 @@ class LogConfig(BaseModel):
             "fmt": LOG_FORMAT,
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
+        "access": {
+            "()": "uvicorn.logging.DefaultFormatter",
+            "fmt": LOG_FORMAT,
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
     }
     handlers = {
         "default": {

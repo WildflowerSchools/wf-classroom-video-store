@@ -4,6 +4,7 @@ import functools
 import json
 import os
 from pathlib import Path
+import time
 from typing import List, Union, Optional
 
 import aiofiles
@@ -12,7 +13,6 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import pymongo
 from wf_fastapi_auth0 import verify_token
-
 
 from .config import Config
 from .log import logger
@@ -146,15 +146,19 @@ async def create_videos(request: Request, videos: str = Form(...), files: List[U
     d_videos = json.loads(videos)
     if len(d_videos) != len(files):
         raise HTTPException(status_code=400, detail="number of videos does not match number of files")
+
     batch = []
     results = []
-    for vid in d_videos:
-        batch.append(Video(**vid).mongo())
-    for vid in batch:
-        pth = vid.get("meta").get("path")
+    for video_metadata in d_videos:
+        video = Video(**video_metadata).mongo()
+        batch.append(video)
+
+        pth = video.get("meta").get("path")
         while pth.startswith("/"):
             pth = pth[1:]
-        vid.get("meta")["path"] = pth
+        video.get("meta")["path"] = pth
+
+    start_mongo_insert = time.perf_counter()
     try:
         result = video_meta_collection.insert_many(batch, ordered=False)
         iids = result.inserted_ids
@@ -166,20 +170,30 @@ async def create_videos(request: Request, videos: str = Form(...), files: List[U
             iids[write_err["index"]] = VideoExistsError(
                 path=write_err["keyValue"]["meta.path"], id=str(existing[0]["_id"])
             )
-    for i, file in enumerate(files):
-        if isinstance(iids[i], VideoExistsError):
-            results.append(iids[i])
+    stop_mongo_insert = time.perf_counter()
+    logger.info(f"Inserted video metadata into Mongo in {stop_mongo_insert - start_mongo_insert:0.4f} seconds")
+
+    for ii, file in enumerate(files):
+        if isinstance(iids[ii], VideoExistsError):
+            results.append(iids[ii])
         else:
-            vid = batch[i]
+            vid = batch[ii]
             file_path = os.path.join(Config.WF_DATA_PATH, vid.get("meta").get("path"))
             if os.path.exists(file_path):
-                results.append(ExistingVideo(id=iids[i], **vid))
+                results.append(ExistingVideo(id=iids[ii], **vid))
             else:
                 os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+                start_file_upload = time.perf_counter()
+
                 async with aiofiles.open(file_path, "wb") as out_file:
                     while contents := await file.read(1024):
                         await out_file.write(contents)
-                results.append(ExistingVideo(id=iids[i], **vid))
+                results.append(ExistingVideo(id=iids[ii], **vid))
+
+                stop_file_upload = time.perf_counter()
+                logger.info(f"Uploaded video file '{file_path}' to EFS in {stop_file_upload - start_file_upload:0.4f} seconds")
+
     return results
 
 
