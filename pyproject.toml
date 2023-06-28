@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "wf-classroom-video-store"
-version = "1.0.1"
+version = "1.0.2"
 description = "video storage api"
 authors = ["Paul J DeCoursey <paul@decoursey.net>"]
 license = "MIT"
@@ -9,6 +9,7 @@ packages = [{include = "classroom_video"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
+boto3 = "^1.25.0"
 pymongo = {version = ">=3.12", extras = ["srv"]}
 jsonpatch = ">=1.32"
 wf-fastapi-auth0 = ">=1.0"
@@ -23,6 +24,7 @@ wf-honeycomb-io = "^2.1.0"
 python-dotenv = "^1.0.0"
 tqdm = "^4.65.0"
 pyyaml = "^6.0"
+asyncache = "^0.3.1"
 
 [tool.poetry.group.dev.dependencies]
 behave = "^1.2.6"
